@@ -1,0 +1,5 @@
+# Lint/format configuration for this repository's tooling (tools/sign.py)
+# and its tests. Matches Cognisn/termograph's own line-length convention so
+# a contributor moving between the two repositories sees one standard.
+line-length = 120
+target-version = "py312"

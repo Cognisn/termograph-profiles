@@ -4,11 +4,17 @@
 # so a fork's pull request gets real feedback. `publish` runs only on the
 # default branch, where the signing key is available.
 #
-# The signing step is deliberately inert until the key exists: it SKIPS with a
-# notice rather than failing, so this repository is usable for review from the
-# moment it is created, and nobody has to disable a red workflow while the key
-# is being set up. Once TERMOGRAPH_SIGNING_KEY is configured as a repository
-# secret the step starts doing its job with no edit here.
+# The signing step SKIPS with a notice, rather than failing, when the key is
+# absent — so this repository stays usable for review even on a fork or a
+# clone with no secret configured, and nobody has to disable a red workflow
+# while the key is being set up. Once TERMOGRAPH_SIGNING_KEY is configured
+# as a repository secret the step signs for real, with no edit here.
+#
+# tools/sign.py does the actual work (signing, canonical-form checking,
+# index.json generation) — see its own module docstring for the full detail,
+# including why it independently re-implements the manifest canonicalisation
+# rule rather than trusting whatever bytes a contributor's export happened
+# to produce.
 
 name: profiles
 
@@ -72,15 +78,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sign bundles and regenerate the index
+      - name: Check for a signing key
+        id: key_check
         env:
-          SIGNING_KEY: ${{ secrets.TERMOGRAPH_SIGNING_KEY }}
+          TERMOGRAPH_SIGNING_KEY: ${{ secrets.TERMOGRAPH_SIGNING_KEY }}
         run: |
-          if [ -z "${SIGNING_KEY:-}" ]; then
+          if [ -z "${TERMOGRAPH_SIGNING_KEY:-}" ]; then
             echo "::notice::TERMOGRAPH_SIGNING_KEY is not configured — skipping signing and indexing."
             echo "::notice::Bundles merged now will need a re-run of this workflow once the key exists."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.key_check.outputs.present == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install signing dependencies
+        if: steps.key_check.outputs.present == 'true'
+        run: pip install --quiet -r tools/requirements.txt
+
+      - name: Sign bundles and regenerate the index
+        if: steps.key_check.outputs.present == 'true'
+        env:
+          TERMOGRAPH_SIGNING_KEY: ${{ secrets.TERMOGRAPH_SIGNING_KEY }}
+        run: python3 tools/sign.py
+
+      - name: Commit signed bundles and the regenerated index
+        if: steps.key_check.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "termograph-profiles-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add bundles/ index.json
+          if git diff --cached --quiet; then
+            echo "nothing changed — bundles were already signed and indexed"
             exit 0
           fi
-          echo "Signing is configured, but the signing tool is not wired up yet."
-          echo "::error::Signing key present with no implementation — refusing to publish an unsigned index."
-          exit 1
+          git commit -m "Sign bundles and regenerate index"
+          git push
