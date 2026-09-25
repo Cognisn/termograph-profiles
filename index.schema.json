@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Termograph profile library index",
+  "description": "The catalogue Termograph reads to populate Profiles > Community. Written by the publish pipeline; never edited by hand in a pull request.",
+  "type": "object",
+  "required": ["schema_version", "bundles"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "generated_at": { "type": ["string", "null"], "format": "date-time" },
+    "signing_key_id": {
+      "type": ["string", "null"],
+      "description": "Identifies the key the bundles below were signed with, so a client can tell a key rotation from a tampered index."
+    },
+    "bundles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "provider", "version", "platforms", "file", "sha256"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier for this profile across versions.",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "provider": {
+            "type": "string",
+            "description": "Who authored the profile. Free text, and independent of the signature — the signature says who published it."
+          },
+          "version": { "type": "string" },
+          "platforms": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Human-readable platforms this profile targets, e.g. 'Nuix Workstation 7.x'."
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "enum": ["pairing", "inference_chain", "script", "column_profile", "column_names", "skill", "canned_prompt"]
+            },
+            "description": "Which component slots the bundle fills. Termograph shows the operator which analyses they must still run for the slots that are absent."
+          },
+          "file": { "type": "string", "description": "Path within this repository, e.g. bundles/nuix-workstation-7x-1.0.0.tgprofile" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "signed": { "type": "boolean" },
+          "published_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      }
+    }
+  }
+}

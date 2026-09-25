@@ -1,0 +1,86 @@
+# Validate every proposed bundle on a pull request; sign and index on merge.
+#
+# Two jobs on purpose. `validate` runs for contributors and needs no secret,
+# so a fork's pull request gets real feedback. `publish` runs only on the
+# default branch, where the signing key is available.
+#
+# The signing step is deliberately inert until the key exists: it SKIPS with a
+# notice rather than failing, so this repository is usable for review from the
+# moment it is created, and nobody has to disable a red workflow while the key
+# is being set up. Once TERMOGRAPH_SIGNING_KEY is configured as a repository
+# secret the step starts doing its job with no edit here.
+
+name: profiles
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: index.json is pipeline-owned
+        if: github.event_name == 'pull_request'
+        run: |
+          # The index is generated. A pull request that edits it is either a
+          # mistake or an attempt to list a bundle that was never signed.
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -qx 'index.json'; then
+            echo "::error::index.json is written by the publish pipeline — please revert your changes to it."
+            exit 1
+          fi
+          echo "index.json untouched"
+
+      - name: Bundles are well-formed
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for f in bundles/*.tgprofile; do
+            found=$((found + 1))
+            echo "checking $f"
+            # A bundle is a zip carrying a manifest that commits to every
+            # other file by hash. If the manifest is missing there is nothing
+            # a signature could meaningfully cover.
+            unzip -l "$f" | grep -q 'manifest.json' \
+              || { echo "::error::$f has no manifest.json"; exit 1; }
+            unzip -p "$f" manifest.json | python3 -c 'import json,sys; json.load(sys.stdin)' \
+              || { echo "::error::$f has an unparseable manifest.json"; exit 1; }
+          done
+          echo "$found bundle(s) checked"
+
+      - name: Index matches its schema
+        run: |
+          python3 - <<'PY'
+          import json
+          idx = json.load(open("index.json"))
+          assert idx.get("schema_version") == 1, "unexpected schema_version"
+          assert isinstance(idx.get("bundles"), list), "bundles must be a list"
+          print(f"index.json valid, {len(idx['bundles'])} bundle(s) listed")
+          PY
+
+  publish:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign bundles and regenerate the index
+        env:
+          SIGNING_KEY: ${{ secrets.TERMOGRAPH_SIGNING_KEY }}
+        run: |
+          if [ -z "${SIGNING_KEY:-}" ]; then
+            echo "::notice::TERMOGRAPH_SIGNING_KEY is not configured — skipping signing and indexing."
+            echo "::notice::Bundles merged now will need a re-run of this workflow once the key exists."
+            exit 0
+          fi
+          echo "Signing is configured, but the signing tool is not wired up yet."
+          echo "::error::Signing key present with no implementation — refusing to publish an unsigned index."
+          exit 1
