@@ -256,6 +256,53 @@ def test_sign_bundle_missing_manifest_is_refused(tmp_path: Path) -> None:
         sign.sign_bundle(bundle_path, key)
 
 
+def test_re_signing_an_already_signed_bundle_replaces_the_stale_signature(tmp_path: Path) -> None:
+    # A bundle can genuinely reach sign_bundle a second time already
+    # carrying a signature member -- a re-triggered workflow run, or a
+    # contributor's pull request updated after a first (never-merged) pass.
+    # The stale entry must be REPLACED, not appended alongside the fresh
+    # one (which would leave two `signature` members and an ambiguous
+    # bundle), and the fresh signature must genuinely be a new one made by
+    # whichever key signed it this time, not a leftover.
+    old_key = _ephemeral_key()
+    new_key = _ephemeral_key()
+    bundle_path = tmp_path / "fixture-1.0.0.tgprofile"
+    _write_unsigned_bundle(bundle_path)
+
+    sign.sign_bundle(bundle_path, old_key)
+    with zipfile.ZipFile(bundle_path) as zf:
+        assert zf.namelist().count(sign.SIGNATURE_MEMBER) == 1
+        manifest_before = zf.read("manifest.json")
+        stale_signature = zf.read(sign.SIGNATURE_MEMBER)
+
+    # Re-sign the SAME already-signed bundle with a DIFFERENT key.
+    sign.sign_bundle(bundle_path, new_key)
+
+    with zipfile.ZipFile(bundle_path) as zf:
+        names_after = zf.namelist()
+        manifest_after = zf.read("manifest.json")
+        fresh_signature = zf.read(sign.SIGNATURE_MEMBER)
+
+    # No duplicate signature member -- the stale one was replaced, not
+    # appended alongside the fresh one.
+    assert names_after.count(sign.SIGNATURE_MEMBER) == 1
+    # manifest.json itself is untouched by re-signing.
+    assert manifest_after == manifest_before
+    # The stale signature is genuinely gone, not merely shadowed in
+    # ordering by a duplicate entry.
+    assert fresh_signature != stale_signature
+    # The surviving signature verifies against the NEW key...
+    new_key.public_key().verify(fresh_signature, manifest_after)
+    # ...the stale signature does not verify under the new key (it was
+    # made by a different key, confirming what "stale" means here)...
+    with pytest.raises(InvalidSignature):
+        new_key.public_key().verify(stale_signature, manifest_after)
+    # ...and the fresh signature does not verify under the OLD key either
+    # (it is a genuinely new signature, not the old one merely reordered).
+    with pytest.raises(InvalidSignature):
+        old_key.public_key().verify(fresh_signature, manifest_after)
+
+
 def test_main_regenerates_index_with_the_real_schema_shape(tmp_path: Path) -> None:
     key = _ephemeral_key()
     pem = key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode("ascii")
