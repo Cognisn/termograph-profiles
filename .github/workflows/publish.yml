@@ -100,6 +100,48 @@ jobs:
         if: steps.key_check.outputs.present == 'true'
         run: pip install --quiet -r tools/requirements.txt
 
+      - name: The signing key is the one Termograph trusts
+        if: steps.key_check.outputs.present == 'true'
+        env:
+          TERMOGRAPH_SIGNING_KEY: ${{ secrets.TERMOGRAPH_SIGNING_KEY }}
+          # Mirrors LIBRARY_KEY_ID compiled into the product's
+          # profiles/bundle/signing.py. Termograph verifies against a trust
+          # anchor built into the binary, so a key that does not match it
+          # produces bundles every deployment refuses -- and the operator sees
+          # "invalid signature", which reads as tampering rather than as a
+          # misconfigured secret. Checking it here turns that into one loud
+          # failure at publish time instead of a silent one at every import.
+          #
+          # Rotating the key is a product release (spec R12), so this value and
+          # the product's must change together. If this step fails, do not edit
+          # this line to match the secret -- work out which of the two is wrong.
+          EXPECTED_KEY_ID: "80ef9190a7ccf66f"
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "tools")
+          from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+          from sign import _load_private_key, key_id_of
+
+          # Reuses the signing script's own key loading, so this step also
+          # proves the secret is in a format sign.py can actually read.
+          private = _load_private_key(os.environ["TERMOGRAPH_SIGNING_KEY"])
+          raw = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+          actual, expected = key_id_of(raw), os.environ["EXPECTED_KEY_ID"]
+
+          # The public key and its id are not secret; the private key is never
+          # printed.
+          print(f"signing key id: {actual}")
+          if actual != expected:
+              print(
+                  f"::error::the configured signing key derives key id {actual}, "
+                  f"but Termograph trusts {expected} -- bundles signed with this "
+                  f"key would be refused by every deployment"
+              )
+              raise SystemExit(1)
+          print("matches the trust anchor compiled into Termograph")
+          PY
+
       - name: Sign bundles and regenerate the index
         if: steps.key_check.outputs.present == 'true'
         env:
