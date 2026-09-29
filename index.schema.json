@@ -31,7 +31,7 @@
           "version": {
             "type": "string",
             "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
-            "description": "MAJOR.MINOR with an optional PATCH. Compared numerically part by part, with a missing patch as 0, so 1.10 is newer than 1.9. Deliberately not strict semver: every bundle published when this was introduced was two-part, and requiring three would have invalidated the whole catalogue."
+            "description": "MAJOR.MINOR with an optional PATCH. Compared numerically part by part, with a missing patch as 0, so 1.10 is newer than 1.9. Deliberately not strict semver: every bundle published when this was introduced was two-part, and requiring three would have invalidated the whole catalogue. Duplicated by necessity in `_VERSION_RE` (`src/termograph/profiles/bundle/versions.py`) in `Cognisn/termograph` — there is no shared artefact between the two repositories, so keep both patterns identical."
           },
           "platforms": {
             "type": "array",
