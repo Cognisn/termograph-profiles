@@ -71,6 +71,26 @@ jobs:
           print(f"index.json valid, {len(idx['bundles'])} bundle(s) listed")
           PY
 
+      # The check above is a superficial shape check only. The real
+      # constraint -- every published version matches the orderable pattern
+      # index.schema.json declares, so Termograph's own is_newer() can
+      # actually compare it -- lives in tests/test_index_schema.py and had
+      # never run in this workflow, so a bundle published as e.g. `1.1-beta`
+      # passed validation here and left the product reporting "cannot
+      # order" with no Update offered. jsonschema is installed alongside
+      # pytest/cryptography so the suite can validate index.json and any
+      # future bundle manifest against index.schema.json directly, not only
+      # via the hand-rolled regex checks above.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install --quiet -r tools/requirements.txt pytest jsonschema
+
+      - name: Run the test suite
+        run: pytest
+
   publish:
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
