@@ -28,7 +28,11 @@
             "type": "string",
             "description": "Who authored the profile. Free text, and independent of the signature — the signature says who published it."
           },
-          "version": { "type": "string" },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+            "description": "MAJOR.MINOR with an optional PATCH. Compared numerically part by part, with a missing patch as 0, so 1.10 is newer than 1.9. Deliberately not strict semver: every bundle published when this was introduced was two-part, and requiring three would have invalidated the whole catalogue."
+          },
           "platforms": {
             "type": "array",
             "items": { "type": "string" },
