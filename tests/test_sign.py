@@ -372,3 +372,102 @@ def test_two_signing_runs_of_unchanged_content_with_the_same_key_are_byte_identi
     second_bytes = sign.sign_bundle(bundles_dir / "fixture-1.0.0.tgprofile", key)
 
     assert first_bytes == second_bytes
+
+
+def test_sign_bundle_refuses_a_profile_yaml_a_fresh_export_would_not_reproduce(tmp_path: Path) -> None:
+    """The manifest's canonical-form rule, one member over.
+
+    Termograph decides "has this been modified since import?" by
+    re-exporting the deployment's stored copy and hashing it, never by
+    re-serialising the bundle's stored bytes. So a profile.yaml whose bytes
+    differ from the exporter's own output hashes differently for ever, and
+    every deployment installing the bundle reads it as modified from the
+    moment it lands.
+
+    Observed live on tmg-t01: the hand-edited nuix-7.6-case-family 1.1
+    bundle differed from a fresh export only in where PyYAML wraps a long
+    description string — identical content, different line breaks — and
+    showed as modified immediately after a clean update, while every
+    never-hand-edited bundle showed as unmodified. That is not merely a
+    false badge: Termograph refuses to UPDATE a modified profile without an
+    explicit override, so it makes the next update refuse for a profile
+    nobody touched.
+
+    The fixture below is valid YAML carrying the right content and the
+    right hash — the ONLY thing wrong with it is its line breaks, which is
+    exactly the case that slipped through.
+    """
+    key = _ephemeral_key()
+    bundle_path = tmp_path / "wrapped-1.0.0.tgprofile"
+
+    detector_bytes = b"kind: detector\nid: fixture-detector\n"
+    # A long value hand-wrapped at a different column from PyYAML's own
+    # default. yaml.safe_load gives the identical string either way.
+    profile_bytes = (
+        "kind: collection_profile\n"
+        "id: fixture-profile\n"
+        "description: 'A description long enough that the dumper must wrap it somewhere,\n"
+        "  wrapped here by hand at a column the dumper would not have chosen for itself.'\n"
+    ).encode("utf-8")
+
+    manifest_dict = {
+        "bundle_id": "wrapped",
+        "name": "Hand-wrapped bundle",
+        "provider": "Test harness",
+        "version": "1.0.0",
+        "format_version": 1,
+        "platforms": ["Nuix Workstation 7.x"],
+        "members": {
+            "detector.yaml": "sha256:" + hashlib.sha256(detector_bytes).hexdigest(),
+            "profile.yaml": "sha256:" + hashlib.sha256(profile_bytes).hexdigest(),
+        },
+        "slots": ["pairing"],
+    }
+    with zipfile.ZipFile(bundle_path, mode="w") as zf:
+        zf.writestr("detector.yaml", detector_bytes)
+        zf.writestr("profile.yaml", profile_bytes)
+        zf.writestr("manifest.json", sign.canonical_manifest_bytes(manifest_dict))
+
+    with pytest.raises(sign.SigningError, match="not what a fresh export would reproduce"):
+        sign.sign_bundle(bundle_path, key)
+
+
+def test_sign_bundle_accepts_a_profile_yaml_the_exporter_itself_produced(tmp_path: Path) -> None:
+    """The other half: normalising the same content must make it signable,
+    so the refusal above is about bytes and not about the content."""
+    import yaml
+
+    key = _ephemeral_key()
+    bundle_path = tmp_path / "normalised-1.0.0.tgprofile"
+
+    detector_bytes = b"kind: detector\nid: fixture-detector\n"
+    hand_wrapped = (
+        "kind: collection_profile\n"
+        "id: fixture-profile\n"
+        "description: 'A description long enough that the dumper must wrap it somewhere,\n"
+        "  wrapped here by hand at a column the dumper would not have chosen for itself.'\n"
+    )
+    normalised = yaml.safe_dump(yaml.safe_load(hand_wrapped), sort_keys=False, allow_unicode=True)
+    assert yaml.safe_load(normalised) == yaml.safe_load(hand_wrapped), "content must be unchanged"
+    profile_bytes = normalised.encode("utf-8")
+
+    manifest_dict = {
+        "bundle_id": "normalised",
+        "name": "Normalised bundle",
+        "provider": "Test harness",
+        "version": "1.0.0",
+        "format_version": 1,
+        "platforms": ["Nuix Workstation 7.x"],
+        "members": {
+            "detector.yaml": "sha256:" + hashlib.sha256(detector_bytes).hexdigest(),
+            "profile.yaml": "sha256:" + hashlib.sha256(profile_bytes).hexdigest(),
+        },
+        "slots": ["pairing"],
+    }
+    with zipfile.ZipFile(bundle_path, mode="w") as zf:
+        zf.writestr("detector.yaml", detector_bytes)
+        zf.writestr("profile.yaml", profile_bytes)
+        zf.writestr("manifest.json", sign.canonical_manifest_bytes(manifest_dict))
+
+    sign.sign_bundle(bundle_path, key)
+    assert "signature" in zipfile.ZipFile(bundle_path).namelist()

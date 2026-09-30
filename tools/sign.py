@@ -62,6 +62,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
 
@@ -74,6 +75,7 @@ SIGNING_KEY_ENV = "TERMOGRAPH_SIGNING_KEY"
 #: member the manifest's own ``members`` map names — it cannot commit to its
 #: own detached signature — so it is handled separately throughout.
 MANIFEST_MEMBER = "manifest.json"
+PROFILE_MEMBER = "profile.yaml"
 SIGNATURE_MEMBER = "signature"
 
 #: The fixed zip timestamp every member is written with, matching the
@@ -207,6 +209,56 @@ def _write_signed_bundle(path: Path, members: dict[str, bytes], signature: bytes
     path.write_bytes(buffer.getvalue())
 
 
+def _reject_non_round_tripping_profile(path: Path, members: dict[str, bytes]) -> None:
+    """Refuse a bundle whose ``profile.yaml`` is not what a fresh export
+    would reproduce.
+
+    This is the manifest's canonical-form check, applied one member over,
+    for exactly the reason that one already gives: Termograph compares a
+    bundle against the deployment's stored copy by re-exporting the copy
+    and hashing it, never by re-serialising the stored bytes. So a
+    ``profile.yaml`` whose bytes differ from the exporter's own output —
+    even when the CONTENT is identical — hashes differently for ever, and
+    every deployment that installs the bundle reads it as "modified since
+    import" from the instant it lands.
+
+    That is not theoretical. The ``nuix-7.6-case-family`` 1.1 bundle was
+    hand-edited, and the only difference from a fresh export was where
+    PyYAML wraps a long description string: identical content, different
+    line breaks. Live on tmg-t01 it showed as modified immediately after a
+    clean update, while every bundle that had never been hand-edited showed
+    as unmodified — and because Termograph now refuses to UPDATE a modified
+    profile without an explicit override, a false badge is not merely
+    cosmetic: it makes the next update refuse for a profile nobody touched.
+
+    The rule mirrors ``export._profile_member_bytes`` in
+    ``Cognisn/termograph``: parse the document, re-dump it with
+    ``sort_keys=False, allow_unicode=True``, and require the bytes to
+    match. Reimplemented here rather than imported, on the same footing as
+    ``canonical_manifest_bytes`` — the two repositories share no artefact,
+    so this is a second, independent statement of one rule and the two must
+    be kept in step by hand.
+    """
+    raw = members.get(PROFILE_MEMBER)
+    if raw is None:
+        raise SigningError(f"{path}: no profile.yaml member")
+    try:
+        text = raw.decode("utf-8")
+        document = yaml.safe_load(text)
+    except (UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise SigningError(f"{path}: profile.yaml is not readable UTF-8 YAML") from exc
+
+    reproduced = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+    if reproduced != text:
+        raise SigningError(
+            f"{path}: profile.yaml is not what a fresh export would reproduce — its content may "
+            "be correct, but its bytes are not, so every deployment installing this bundle would "
+            "read it as modified from the moment it landed (and refuse the next update). "
+            "Re-export it from Termograph, or normalise it with "
+            "yaml.safe_dump(yaml.safe_load(text), sort_keys=False, allow_unicode=True)."
+        )
+
+
 def sign_bundle(path: Path, private_key: Ed25519PrivateKey) -> bytes:
     """Sign *path*'s manifest and rewrite it with a fresh ``signature``
     member. Returns the signed bundle's whole-file bytes (for the caller's
@@ -232,6 +284,8 @@ def sign_bundle(path: Path, private_key: Ed25519PrivateKey) -> bytes:
             "canonicalisation rule (section 3.3). Refusing to sign a manifest "
             "whose stored bytes are not what a fresh export would reproduce."
         )
+
+    _reject_non_round_tripping_profile(path, members)
 
     signature = private_key.sign(manifest_bytes)
     _write_signed_bundle(path, members, signature)
