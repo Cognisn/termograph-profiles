@@ -2,3 +2,4 @@
 # product repository (Cognisn/termograph) requires for Ed25519 support, so
 # the two repositories' cryptography behaviour cannot silently drift apart.
 cryptography>=42
+pyyaml
