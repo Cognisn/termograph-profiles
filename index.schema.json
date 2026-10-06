@@ -41,7 +41,7 @@
           "slots": {
             "type": "array",
             "items": {
-              "enum": ["pairing", "inference_chain", "script", "column_profile", "column_names", "skill", "canned_prompt"]
+              "enum": ["pairing", "inference_chain", "script", "column_profile", "column_names", "skill", "canned_prompt", "preparation"]
             },
             "description": "Which component slots the bundle fills. Termograph shows the operator which analyses they must still run for the slots that are absent."
           },
