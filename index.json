@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-02T02:52:38Z",
+  "generated_at": "2026-11-07T01:45:33Z",
   "signing_key_id": "80ef9190a7ccf66f",
   "bundles": [
     {
@@ -15,7 +15,7 @@
       "file": "bundles/elastic.tgprofile",
       "sha256": "a502a0378c70b94ca174c22fc9e38916e1b711eaa21a2207f6520a624dee0d35",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "intella",
@@ -32,7 +32,7 @@
       "file": "bundles/intella.tgprofile",
       "sha256": "bbf4470925e9a4205a316699d9b7e0b92562199bc77be9cddb7b272c7a02efa7",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "magnet-axiom",
@@ -50,7 +50,7 @@
       "file": "bundles/magnet-axiom.tgprofile",
       "sha256": "cf29f4ebf66dea66695edde76130e91108f3d7ff8bb4f0fb5d0155475cccb323",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "nuix",
@@ -66,7 +66,7 @@
       "file": "bundles/nuix.tgprofile",
       "sha256": "52a8371dc1cdf74be3e23b84d91b968df165565b2bf695a482116fea41d982b0",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "nuix-7.6-case-family",
@@ -86,7 +86,7 @@
       "file": "bundles/nuix-7.6-case-family.tgprofile",
       "sha256": "d6146449a23a1582ef5e5fed2cf37ed48341179446f51b8b1383193ef5094803",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "nuix-neo",
@@ -104,7 +104,7 @@
       "file": "bundles/nuix-neo.tgprofile",
       "sha256": "ed20e37763a0d71abfee4111b2a4cd7e26965f0d134cd8eab0365f97bff3d947",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "nuix-pre7",
@@ -120,7 +120,7 @@
       "file": "bundles/nuix-pre7.tgprofile",
       "sha256": "545200710ef1baca8419afb8bbe1c4e7ba2185ca6823c782a6f3d3145aa9b268",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "paired-derby",
@@ -136,13 +136,13 @@
       "file": "bundles/paired-derby.tgprofile",
       "sha256": "a273532595157fd2d2617f9fcc24ccfff82507fd575aac97bab18fc51c2521a7",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     },
     {
       "id": "relativity-arm",
       "name": "Relativity ARM",
       "provider": "Cognisn",
-      "version": "1.0",
+      "version": "1.1",
       "platforms": [
         "Relativity ARM exports; EDDS schema"
       ],
@@ -153,9 +153,9 @@
         "preparation"
       ],
       "file": "bundles/relativity-arm.tgprofile",
-      "sha256": "4e5b68f4bbd45d8797937b4a170beee98cbcd485842d2d881792ff2176c95312",
+      "sha256": "463c77019a655cfbb8c6f095cbb999f5795f940413b8b64a7f2306aaecd599ce",
       "signed": true,
-      "published_at": "2026-11-02T02:52:38Z"
+      "published_at": "2026-11-07T01:45:33Z"
     }
   ]
 }
